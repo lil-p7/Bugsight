@@ -1,0 +1,20 @@
+{
+  "name": "ai-code-review-bot",
+  "version": "0.1.0",
+  "description": "AI code review bot that reviews GitHub pull requests with OpenAI and posts findings back to the PR",
+  "type": "module",
+  "private": true,
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "review:file": "node --env-file-if-exists=.env scripts/review-snippet.js",
+    "review:bugsnips": "node --env-file-if-exists=.env scripts/review-buggy-snippets.js"
+  },
+  "dependencies": {
+    "openai": "^7.38.0",
+    "zod": "^4.6.7"
+  }
+}
