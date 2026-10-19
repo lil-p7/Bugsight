@@ -5,8 +5,9 @@ requests. It uses OpenAI models to identify potential bugs, security
 vulnerabilities, logical errors, and code-quality issues, then posts
 actionable feedback directly on the pull request.
 
-> **Status: Phase 1 complete (AI review prototype).** GitHub integration,
-> the webhook server, and review publishing are not built yet.
+> **Status: Phase 2 in progress (GitHub integration).** GitHub App auth,
+> webhook server with signature verification, and diff retrieval are being built.
+> Review publishing is Phase 4.
 
 ## How it works (target architecture)
 
@@ -60,9 +61,9 @@ npm run review:file -- path/to/file.js
 | ----------------- | -------- | ------------- | ----------------------------------------- |
 | `OPENAI_API_KEY`  | yes      | —             | OpenAI API key                            |
 | `OPENAI_MODEL`    | no       | `gpt-4o-mini` | Model used for reviews                    |
-| `GITHUB_APP_ID`   | Phase 2  | —             | GitHub App ID (created in Phase 2)        |
-| `GITHUB_PRIVATE_KEY_PATH` | Phase 2 | —        | Path to the GitHub App private key (PEM)  |
-| `GITHUB_WEBHOOK_SECRET`   | Phase 2 | —        | Webhook signature secret                  |
+| `GITHUB_APP_ID`   | Done   | —             | GitHub App ID (created in Phase 2)        |
+| `GITHUB_PRIVATE_KEY_PATH` | Done | —        | Path to the GitHub App private key (PEM)  |
+| `GITHUB_WEBHOOK_SECRET`   | Done | —        | Webhook signature secret                  |
 | `MAX_REVIEW_CHARS`        | no (Phase 3) | `60000` | Max diff characters sent per review |
 | `MAX_FILES_PER_REVIEW`    | no (Phase 3) | `30`    | Max files considered per PR         |
 
@@ -113,7 +114,7 @@ findings are rejected with a reason and never posted.
 ## Roadmap
 
 - [x] **Phase 1** — Project setup and AI prototype
-- [ ] **Phase 2** — GitHub integration (GitHub App, webhooks, signature
+- [x] **Phase 2** — GitHub integration (GitHub App, webhooks, signature
       verification, diff retrieval)
 - [ ] **Phase 3** — Review pipeline (diff parsing/filtering, limits,
       error and rate-limit handling)

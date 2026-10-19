@@ -11,7 +11,9 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "review:file": "node --env-file-if-exists=.env scripts/review-snippet.js",
-    "review:bugsnips": "node --env-file-if-exists=.env scripts/review-buggy-snippets.js"
+    "review:bugsnips": "node --env-file-if-exists=.env scripts/review-buggy-snippets.js",
+    "server": "node --env-file-if-exists=.env scripts/start-webhook-server.js",
+    "pr:diff": "node --env-file-if-exists=.env scripts/fetch-pr-diff.js"
   },
   "dependencies": {
     "openai": "^7.38.0",
