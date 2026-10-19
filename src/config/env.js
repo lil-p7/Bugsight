@@ -7,6 +7,33 @@
 
 export const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 
+/** Default for MAX_REVIEW_CHARS: total diff characters sent to the model per PR review. */
+export const DEFAULT_MAX_REVIEW_CHARS = 60000;
+/** Default for MAX_FILES_PER_REVIEW: most-changed files considered per PR. */
+export const DEFAULT_MAX_FILES_PER_REVIEW = 30;
+
+/**
+ * Review-pipeline safety limits (Phase 3).
+ *
+ * @returns {{ maxReviewChars: number, maxFilesPerReview: number }}
+ * @throws {EnvConfigError} when a MAX_* value is set but is not a positive integer
+ */
+export function getReviewLimitsConfig(env = process.env) {
+  const readPositiveInt = (name, fallback) => {
+    const raw = (env[name] ?? '').trim();
+    if (raw === '') return fallback;
+    const value = Number(raw);
+    if (!/^\d+$/.test(raw) || value < 1) {
+      throw new EnvConfigError(`${name} must be a positive integer, got "${raw}".`);
+    }
+    return value;
+  };
+  return {
+    maxReviewChars: readPositiveInt('MAX_REVIEW_CHARS', DEFAULT_MAX_REVIEW_CHARS),
+    maxFilesPerReview: readPositiveInt('MAX_FILES_PER_REVIEW', DEFAULT_MAX_FILES_PER_REVIEW),
+  };
+}
+
 export class EnvConfigError extends Error {
   constructor(message) {
     super(message);

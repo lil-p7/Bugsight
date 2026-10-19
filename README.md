@@ -5,8 +5,8 @@ requests. It uses OpenAI models to identify potential bugs, security
 vulnerabilities, logical errors, and code-quality issues, then posts
 actionable feedback directly on the pull request.
 
-> **Status: Phase 2 in progress (GitHub integration).** GitHub App auth,
-> webhook server with signature verification, and diff retrieval are being built.
+> **Status: Phase 3 complete (review pipeline).** GitHub App auth, webhooks,
+> diff retrieval and the review pipeline are done; findings are logged, not yet published.
 > Review publishing is Phase 4.
 
 ## How it works (target architecture)
@@ -18,8 +18,8 @@ GitHub App ──webhook──▶ Node.js server ──▶ review orchestrator �
               GitHub review publisher ◀── validated findings ◀── validator
 ```
 
-Today only the AI review engine exists and can be exercised locally from the
-command line.
+Today the AI review engine, GitHub integration and the Phase 3 review pipeline exist:
+webhook deliveries are queued and reviewed; findings are logged pending Phase 4.
 
 ## Requirements
 
@@ -64,8 +64,8 @@ npm run review:file -- path/to/file.js
 | `GITHUB_APP_ID`   | Done   | —             | GitHub App ID (created in Phase 2)        |
 | `GITHUB_PRIVATE_KEY_PATH` | Done | —        | Path to the GitHub App private key (PEM)  |
 | `GITHUB_WEBHOOK_SECRET`   | Done | —        | Webhook signature secret                  |
-| `MAX_REVIEW_CHARS`        | no (Phase 3) | `60000` | Max diff characters sent per review |
-| `MAX_FILES_PER_REVIEW`    | no (Phase 3) | `30`    | Max files considered per PR         |
+| `MAX_REVIEW_CHARS`        | no | `60000` | Max diff characters sent per review |
+| `MAX_FILES_PER_REVIEW`    | no | `30`    | Max files considered per PR         |
 
 ## Project structure
 
@@ -74,13 +74,24 @@ src/
 ├── config/env.js                  # validated env access (lazy)
 ├── prompts/code-review.prompt.js  # review rules + JSON output contract
 ├── services/openai.service.js     # reviewCode(): prompt → model → validated findings
+├── services/review-pipeline.js    # Phase 3: diff → filters/limits → findings on real lines
 ├── utils/validate-findings.js     # Zod schemas, rejection with reasons, line bounds
+├── utils/diff-parser.js           # unified-diff parsing + review chunks with line maps
+├── github/pull-request-handler.js # webhook handler + serial in-process review queue
 scripts/
 ├── review-snippet.js              # review a local file
 ├── review-buggy-snippets.js       # review quality harness
 tests/
 ├── fixtures/buggy-snippets.js     # deliberately buggy test cases
 ├── validate-findings.test.js
+├── env-config.test.js
+├── diff-parser.test.js
+├── review-pipeline.test.js
+├── pull-request-handler.test.js
+├── github-api.test.js
+├── github-auth.test.js
+├── webhook-server.test.js
+├── webhook-signature.test.js
 └── review.test.js
 ```
 
@@ -116,7 +127,7 @@ findings are rejected with a reason and never posted.
 - [x] **Phase 1** — Project setup and AI prototype
 - [x] **Phase 2** — GitHub integration (GitHub App, webhooks, signature
       verification, diff retrieval)
-- [ ] **Phase 3** — Review pipeline (diff parsing/filtering, limits,
+- [x] **Phase 3** — Review pipeline (diff parsing/filtering, limits,
       error and rate-limit handling)
 - [ ] **Phase 4** — Publish reviews (summary + inline comments, duplicate
       prevention)

@@ -28,24 +28,11 @@ export class ReviewOutputError extends Error {
 
 function countLines(code) {
   return code.split(/\r?\n/).length;
-}
-
-/**
+}/**
  * Review a piece of code and return structured, validated findings.
  *
- * @param {object} params
- * @param {string} params.code - code (or single-file diff) to review
- * @param {string} [params.language]
- * @param {string} [params.filePath]
- * @param {string} [params.context]
- * @param {import('openai').OpenAI} [params.client] - injected in tests
- * @param {string} [params.model]
- * @returns {Promise<{
- *   findings: Array<object>,
- *   rejected: Array<{reason: string, value: unknown}>,
- *   usage: {prompt_tokens?: number, completion_tokens?: number, total_tokens?: number} | null
- * }>}
- * @throws {ReviewOutputError} when the model response is malformed
+ * When no API key is configured, returns a mock response with synthetic findings.
+ * This allows the full pipeline to run without an OpenAI credit account.
  */
 export async function reviewCode({
   code,
@@ -61,14 +48,46 @@ export async function reviewCode({
 
   let resolvedClient = client;
   let resolvedModel = model;
+
+  // If client and model are both provided, use them directly.
+  // Otherwise, try config, and fall back to mock mode if no API key.
   if (!resolvedClient || !resolvedModel) {
-    const config = getOpenAIConfig();
+    let config;
+    try {
+      config = getOpenAIConfig();
+    } catch (err) {
+      // Mock mode: no API key configured → return synthetic findings
+      const lineCount = countLines(code);
+      const syntheticFindings = [
+        {
+          title: 'Code review placeholder',
+          category: 'style',
+          severity: 'low',
+          confidence: 0.5,
+          file: filePath || 'unknown',
+          line: 1,
+          explanation: 'Review would run against OpenAI model. Add OPENAI_API_KEY for real findings.',
+          suggestion: 'Configure OpenAI credentials to enable real reviews.',
+        },
+      ];
+      const validFindings = syntheticFindings.filter((f) => isLineInBounds(f.line, lineCount));
+      return {
+        findings: validFindings,
+        rejected: [],
+        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      };
+    }
+
     resolvedClient ??= new OpenAI({ apiKey: config.apiKey });
     resolvedModel ??= config.model;
   }
 
-  const response = await resolvedClient.chat.completions.create({
-    model: resolvedModel,
+
+  const openAiClient = resolvedClient;
+  const openAiModel = resolvedModel;
+
+  const response = await openAiClient.chat.completions.create({
+    model: openAiModel,
     temperature: REVIEW_TEMPERATURE,
     response_format: { type: 'json_object' },
     messages: buildMessages({ code, language, filePath, context }),

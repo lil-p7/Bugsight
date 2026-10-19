@@ -7,12 +7,22 @@
  * For local development point a tunnel (ngrok, smee.io, ...) at the port and
  * configure that URL as the App's webhook URL with the same secret.
  *
- * Phase 3 wires the review pipeline into the pull_request handler; until then
- * deliveries are logged and acknowledged so the whole receive path can be
- * exercised end to end.
+ * Phase 3: pull_request deliveries are validated, queued on an in-process
+ * serial queue and reviewed through the pipeline (diff -> limits -> OpenAI ->
+ * validated findings anchored on real file lines). The handler answers GitHub
+ * immediately; results are logged here until Phase 4 publishes them back to
+ * the PR.
  */
-import { getGithubWebhookConfig } from '../src/config/env.js';
+import {
+  getGithubAppConfig,
+  getGithubWebhookConfig,
+  getReviewLimitsConfig,
+} from '../src/config/env.js';
+import { createGithubClient } from '../src/github/api.js';
+import { createInstallationTokenProvider, loadPrivateKey } from '../src/github/app-auth.js';
+import { createPullRequestHandler } from '../src/github/pull-request-handler.js';
 import { startWebhookServer } from '../src/github/webhook-server.js';
+import { runReviewPipeline } from '../src/services/review-pipeline.js';
 
 function fail(message) {
   console.error(`Error: ${message}`);
@@ -26,25 +36,48 @@ try {
   fail(err.message);
 }
 
-const REVIEWABLE_ACTIONS = new Set(['opened', 'synchronize', 'reopened']);
+// The pipeline needs App credentials (diff fetch) and limits at startup;
+// OpenAI is checked lazily so the server still acks deliveries without a key.
+let appConfig;
+let privateKey;
+try {
+  appConfig = getGithubAppConfig();
+  privateKey = await loadPrivateKey(appConfig.privateKeyPath);
+} catch (err) {
+  fail(err.message);
+}
+
+let limits;
+try {
+  limits = getReviewLimitsConfig();
+} catch (err) {
+  fail(err.message);
+}
+
+if (!(process.env.OPENAI_API_KEY ?? '').trim()) {
+  console.warn(
+    '[startup] OPENAI_API_KEY is not set — queued reviews will fail until it is added to .env'
+  );
+}
+
+const getGithubClient = ({ installationId }) =>
+  createGithubClient({
+    getToken: createInstallationTokenProvider({
+      appId: appConfig.appId,
+      privateKey,
+      installationId,
+    }),
+  });
+
+const reviewHandler = createPullRequestHandler({
+  getGithubClient,
+  runReview: (args) => runReviewPipeline({ ...args, limits }),
+  logger: console,
+});
 
 const handlers = {
   ping: (payload) => ({ pong: true, zen: payload?.zen ?? null }),
-  pull_request: async (payload, ctx) => {
-    const pr = payload.pull_request;
-    console.log(
-      `[webhook] pull_request ${payload.action} on ${payload.repository?.full_name}#${pr?.number}` +
-        ` (delivery ${ctx.delivery ?? 'n/a'})`
-    );
-    if (!REVIEWABLE_ACTIONS.has(payload.action)) {
-      return { ignored: true, reason: `action "${payload.action}" is not reviewable` };
-    }
-    return {
-      ignored: true,
-      reason: 'review pipeline not wired yet (Phase 3)',
-      installation: payload.installation?.id ?? null,
-    };
-  },
+  pull_request: reviewHandler,
 };
 
 const port = Number(process.env.PORT ?? 3000);
